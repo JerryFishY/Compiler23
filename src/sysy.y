@@ -24,7 +24,6 @@ using namespace std;
   std::string *str_val;
   int int_val;
   BaseAST *ast_val;
-
 }
 
 // Token declaration
@@ -92,8 +91,8 @@ Number
 
 // Error handler
 void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
-    extern int yylineno;    // defined and maintained in lex
-    extern char *yytext;    // defined and maintained in lex
+    extern int yylineno;    
+    extern char *yytext; 
     int len=strlen(yytext);
     int i;
     char buf[512]={0};
@@ -102,5 +101,4 @@ void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
         sprintf(buf,"%s%d ",buf,yytext[i]);
     }
     fprintf(stderr, "ERROR: %s at symbol '%s' on line %d\n", s, buf, yylineno);
-
 }

@@ -6,7 +6,7 @@
 
 #include <cstdlib>
 #include <string>
-#include "sysy.tab.hpp"
+#include "sysy.tab.hpp"    // Some variables in sysy.y is used here
 
 using namespace std;
 
