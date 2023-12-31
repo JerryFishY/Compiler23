@@ -29,11 +29,14 @@ int main(int argc, const char *argv[]) {
   unique_ptr<BaseAST> ast;
   auto ret = yyparse(ast);
   assert(!ret);
-
   // Mode choosing
   if(mode[1] == 'k'){
     freopen(output,"w",stdout);
     ast->Koopa();
+    return 0;
+  }else if(mode[1] == 'd'){
+    ast->Dump();
+    std::cout<<"\n";
     return 0;
   }
 
@@ -45,7 +48,7 @@ int main(int argc, const char *argv[]) {
   char *buf=(char *)malloc(50000000);
   fread(buf,1,50000000,koopafile);
   fclose(koopafile);
-  
+
   freopen(output,"w",stdout);
   parse_str(buf);
   return 0;

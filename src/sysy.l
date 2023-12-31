@@ -31,6 +31,13 @@ Hexadecimal   0[xX][0-9a-fA-F]+
 {LineComment}   { /* Do nothing */ }
 {BlockComment}  { /* Do nothing*/}
 
+"<="            { return LE; }
+">="            { return GE; }
+"=="            { return EQ; }
+"!="            { return NE;}
+"&&"            { return AND; }
+"||"            { return OR; }
+
 "int"           { return INT; }
 "return"        { return RETURN; }
 
