@@ -3,3 +3,5 @@
 .vscode
 /debug
 /test
+testcases
+*.out
