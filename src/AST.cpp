@@ -12,7 +12,7 @@ void CompUnitAST::Dump() const {
   func_def->Dump();
   std::cout << "}";
 }
-void CompUnitAST::Koopa() const{
+void CompUnitAST::Koopa(){
     func_def->Koopa();
 }
 
@@ -24,18 +24,21 @@ void FuncDefAST::Dump() const {
     block->Dump();
     std::cout << "}";
 }
-void FuncDefAST::Koopa() const {
+void FuncDefAST::Koopa() {
     std::cout << "fun ";
     std::cout << "@"<<ident<<"(): ";
     func_type->Koopa();
+    std::cout<<"{\n";
+    std::cout << "%entry:\n";
     block->Koopa();
+    std::cout<<"}\n";
 }
 
 // FuncType
 void FuncTypeAST::Dump() const {
     std::cout << "FuncType { int }";
   }
-void FuncTypeAST::Koopa() const{
+void FuncTypeAST::Koopa(){
     std::cout << "i32 ";
 }
 
@@ -44,22 +47,100 @@ void StmtAST::Dump() const {
     if(tag == RETURN){
         std::cout << "Stmt { return ";
         exp->Dump();
+        std::cout<<"}";
     }
-    else{
+    else if(tag == BLOCK){
+        std::cout << "Stmt { ";
+        block->Dump();
+        std::cout<<"}";
+    }
+    else if(tag == EXP){
+        std::cout << "Stmt { ";
+        exp->Dump();
+        std::cout<<"}";
+    }
+    else if(tag == ASSIGN){
     std::cout << "Stmt { ";
         lval->Dump();
         exp->Dump();
-    }
-    std::cout << "; }";
+        std::cout<<"}";
+    }else if(tag == EMPTY){
+        std::cout << "Stmt { ";
+        std::cout<<"}";
+    }else if(tag == IF){
+        std::cout << "Stmt { if ";
+        ifexp->Dump();
+        std::cout << " ";
+        ifstmt->Dump();
+        std::cout << "; }";
+    }else if(tag == IFELSE){
+        std::cout << "Stmt { if ";
+        ifexp->Dump();
+        std::cout << " else";
+        ifstmt->Dump();
+        elsestmt->Dump();
+        std::cout<<"}";
+        }
+
 }
-void StmtAST::Koopa() const{
+void StmtAST::Koopa(){
+    //place holder
     if(tag == RETURN){
+        if(end_blk[now_if_dep]) return;
+        end_blk[now_if_dep] = 1;
         exp->Koopa();
         std::cout << "ret "<< "%" << index_sysy - 1<< "\n";
     }
-    else{
+    else if(tag == ASSIGN){
+        if(end_blk[now_if_dep]) return;
         exp->Koopa();
         lval->Koopa();
+    }else if(tag == EMPTY){
+        //do nothing
+    }else if(tag == EXP){
+        if(end_blk[now_if_dep]) return;
+        exp->Koopa();
+    }else if(tag == BLOCK){
+        if(end_blk[now_if_dep]) return;
+        block->Koopa();
+    }else if(tag == IF){
+        if(end_blk[now_if_dep]) return;
+        if_idx++;
+        int now_if_idx=if_idx;
+
+        ifexp->Koopa();
+        std::cout<<"br %"<<index_sysy-1<<", %if"<<now_if_idx<<", %end"<<now_if_idx<<"\n\n";
+
+        std::cout<<"%if"<<now_if_idx<<":\n";
+        if_dep++;
+        now_if_dep = if_dep;
+        ifstmt->Koopa();
+        if(!end_blk[now_if_dep])std::cout<<"jump %end"<<now_if_idx<<"\n\n";
+        std::cout<<"%end"<<now_if_idx<<":"<<"\n";
+        if_dep++;
+        now_if_dep=if_dep;
+    } else if(tag == IFELSE){
+        if(end_blk[now_if_dep]) return;
+        if_idx++;
+        int now_if_idx=if_idx;
+
+        ifexp->Koopa();
+        std::cout<<"br %"<<index_sysy-1<<", %if"<<now_if_idx<<", %else"<<now_if_idx<<"\n\n";
+        std::cout<<"%if"<<now_if_idx<<":\n";
+
+        if_dep++;
+        now_if_dep = if_dep;
+
+        ifstmt->Koopa();
+        if(!end_blk[now_if_dep])std::cout<<"jump %end"<<now_if_idx<<"\n\n";
+        std::cout<<"\n%else"<<now_if_idx<<":\n";
+        if_dep++;
+        now_if_dep = if_dep;
+        elsestmt->Koopa();
+        if(!end_blk[now_if_dep])std::cout<<"jump %end"<<now_if_idx<<"\n\n";
+        std::cout<<"\n%end"<<now_if_idx<<":"<<std::endl;
+        if_dep++;
+        now_if_dep=if_dep;
     }
 }
 
@@ -72,13 +153,16 @@ void BlockAST::Dump() const {
     }
     std::cout << " }";
 }
-void BlockAST::Koopa() const{
-    std::cout << "{\n";
-    std::cout << "%entry:\n";
+void BlockAST::Koopa(){
+    blk_idx++;
+    block_tree[blk_idx] = now_idx;
+    now_idx=blk_idx;
+
     for(auto &i : block_item){
         i->Koopa();
     }
-    std::cout << "}\n";
+
+    now_idx = block_tree[now_idx];
 }
 
 // lv3.1
@@ -88,7 +172,7 @@ void ExpAST::Dump() const {
     lorexp->Dump();
     std::cout << " }";
 }
-void ExpAST::Koopa() const{
+void ExpAST::Koopa(){
     lorexp->Koopa();
 }
 
@@ -106,7 +190,7 @@ void PrimaryExpAST::Dump() const {
     }
     std::cout << " }";
 }
-void PrimaryExpAST::Koopa() const{
+void PrimaryExpAST::Koopa(){
     if(tag == EXP){
         exp->Koopa();
     }else if(tag == LVal){
@@ -139,7 +223,7 @@ void UnaryExpAST::Dump() const {
     }
     std::cout << " }";
 }
-void UnaryExpAST::Koopa() const{
+void UnaryExpAST::Koopa(){
     if(tag == OPUEXP){
         if(op == "-"){
             uexp->Koopa();
@@ -184,7 +268,7 @@ void AddExpAST::Dump() const {
     }
     std::cout << " }";
 }
-void AddExpAST::Koopa() const{
+void AddExpAST::Koopa(){
     if(tag == AddExpAST::MEXP){
         mexp->Koopa();
     }
@@ -228,7 +312,7 @@ void MulExpAST::Dump() const {
     }
     std::cout << " }";
 }
-void MulExpAST::Koopa() const{
+void MulExpAST::Koopa(){
     if(tag == MulExpAST::UEXP){
         uexp->Koopa();
     }
@@ -276,7 +360,7 @@ void RelExpAST::Dump() const {
         aexp->Dump();
     }
 }
-void RelExpAST::Koopa() const{
+void RelExpAST::Koopa(){
     if(tag==AEXP){
         aexp->Koopa();
     }
@@ -330,7 +414,7 @@ void EqExpAST::Dump() const {
         relexp->Dump();
     }
 }
-void EqExpAST::Koopa() const{
+void EqExpAST::Koopa(){
     if(tag == EqExpAST::RELEXP){
         relexp->Koopa();
     }
@@ -372,27 +456,33 @@ void LAndExpAST::Dump() const {
         eqexp->Dump();
     }
 }
-void LAndExpAST::Koopa() const{
+void LAndExpAST::Koopa(){
     if(tag == LAndExpAST::EQEXP){
         eqexp->Koopa();
     }
     else{
         landexp->Koopa();
         int now1 = index_sysy - 1;
+        int if_res = index_sysy; 
+        std::cout<<"@result_"<<if_res<<" = alloc i32"<<"\n"<<"%"<<if_res<<"= ne 0, %"<<now1<<"\n"<<"store %"<<if_res<<", @result_"<<if_res<<"\n";
+        index_sysy++;
+
+        if_idx++;
+        int now_if_idx=if_idx;
+        std::cout<<"br %"<<if_res<<", %if"<<now_if_idx<<", %end"<<now_if_idx<<"\n\n";
+        std::cout<<"%if"<<now_if_idx<<":\n";
         eqexp->Koopa();
-        int now2 = index_sysy - 1;
-        if(op == "&&"){
-            std::cout << "%"<<index_sysy<< " = eq %"<<now1<<", 0" <<"\n";
-            index_sysy++;
-            std::cout << "%"<<index_sysy<< " = eq %"<<now2<<", 0" <<"\n";
-            index_sysy++;
-            std::cout << "%"<<index_sysy<< " = or %"<<index_sysy - 2<<", %"<<index_sysy - 1 <<"\n";
-            index_sysy++;
-            std::cout << "%"<<index_sysy<< " = eq %"<<index_sysy - 1<<", 0\n";
-            index_sysy++;
-        }
+        int now2=index_sysy-1;
+        std::cout<<"%"<<index_sysy<<"= ne 0, %"<<now2<<"\n";
+        index_sysy++;
+        std::cout<<"store "<<'%'<<index_sysy-1<<", @result_"<<if_res<<std::endl;
+        std::cout<<"jump %end"<<now_if_idx<<"\n\n";
+        std::cout<<"%end"<<now_if_idx<<":"<<std::endl;
+        std::cout<<"\t%"<<index_sysy<<"= load @result_"<<if_res<<std::endl;
+        index_sysy++;
     }
 }
+
 int LAndExpAST::calc() const{
     if(tag == LAndExpAST::EQEXP){
         return eqexp->calc();
@@ -405,31 +495,44 @@ int LAndExpAST::calc() const{
 // LOrExpAST
 void LOrExpAST::Dump() const {
     if(tag == LOrExpAST::LANDEXP){
+        std::cout<<"LOrExp {";
         landexp->Dump();
+        std::cout<<"}";
     }
     else{
+        std::cout<<"LOrExp {";
         lorexp->Dump();
         std::cout << op << ", ";
         landexp->Dump();
+        std::cout<<"}";
     }
 }
-void LOrExpAST::Koopa() const{
+void LOrExpAST::Koopa(){
     if(tag == LOrExpAST::LANDEXP){
         landexp->Koopa();
     }
     else{
         lorexp->Koopa();
         int now1 = index_sysy - 1;
+        int if_res = index_sysy; 
+        std::cout<<"@result_"<<if_res<<" = alloc i32"<<"\n"<<"%"<<if_res<<"= eq 0, %"<<now1<<"\n";
+        index_sysy++;
+        std::cout<<"%"<<index_sysy<<"= ne 0, %"<<now1<<"\n"<<"store %"<<index_sysy<<", @result_"<<if_res<<"\n";
+        index_sysy++;
+
+        if_idx++;
+        int now_if_idx=if_idx;
+        std::cout<<"br %"<<if_res<<", %if"<<now_if_idx<<", %end"<<now_if_idx<<"\n\n";
+        std::cout<<"%if"<<now_if_idx<<":\n";
         landexp->Koopa();
-        int now2 = index_sysy - 1;
-        if(op == "||"){
-            std::cout << "%"<<index_sysy<< " = ne %"<<now1<<", 0" <<"\n";
-            index_sysy++;
-            std::cout << "%"<<index_sysy<< " = ne %"<<now2<<", 0" <<"\n";
-            index_sysy++;
-            std::cout << "%"<<index_sysy<< " = or %"<<index_sysy - 2<<", %"<<index_sysy - 1 <<"\n";
-            index_sysy++;
-        }
+        int now2=index_sysy-1;
+        std::cout<<"%"<<index_sysy<<"= ne 0, %"<<now2<<std::endl;
+        index_sysy++;
+        std::cout<<"store "<<'%'<<index_sysy-1<<", @result_"<<if_res<<std::endl;
+        std::cout<<"jump %end"<<now_if_idx<<"\n\n";
+        std::cout<<"%end"<<now_if_idx<<":"<<"\n";
+        std::cout<<"\t%"<<index_sysy<<"= load @result_"<<if_res<<std::endl;
+        index_sysy++;
     }
 }
 int LOrExpAST::calc() const{
@@ -450,7 +553,7 @@ void DeclAST::Dump() const{
     }
     std::cout << " }";
 }
-void DeclAST::Koopa() const{
+void DeclAST::Koopa(){
     if(tag == DeclAST::CONST){
         const_decl->Koopa();
     }
@@ -468,7 +571,7 @@ void ConstDeclAST::Dump() const{
     }
     std::cout << " }";
 }
-void ConstDeclAST::Koopa() const{
+void ConstDeclAST::Koopa(){
     for(auto &i : const_def){
         i->Koopa();
     }
@@ -481,10 +584,11 @@ void ConstDefAST::Dump() const{
     const_init_val->Dump();
     std::cout << " }";
 }
-void ConstDefAST::Koopa() const{
-    var_type[ident] = CONST_INT;
-    const_val[ident] = const_init_val->calc();
-    // std::cout << var_type[ident] <<" "<<ident<< " = " << const_val[ident] << "\n";
+void ConstDefAST::Koopa(){
+    std::string temp_name=ident+"_"+std::to_string(now_idx);
+    var_type[temp_name] = CONST_INT;
+    const_val[temp_name] = const_init_val->calc();
+    // std::cout << var_type[temp_name] <<" "<<ident<< " = " << const_val[temp_name] << "\n";
 }
 //ConstInitVal
 void ConstInitValAST::Dump() const{
@@ -492,7 +596,7 @@ void ConstInitValAST::Dump() const{
     const_exp->Dump();
     std::cout << " }";
 }
-void ConstInitValAST::Koopa() const{
+void ConstInitValAST::Koopa(){
     //place holder
 }
 
@@ -507,7 +611,7 @@ void BlockItemAST::Dump() const{
     }
     std::cout << " }";
 }
-void BlockItemAST::Koopa() const{
+void BlockItemAST::Koopa(){
     if(tag == BlockItemAST::DECL){
         decl->Koopa();
     }
@@ -522,17 +626,27 @@ void LValAST::Dump() const{
     std::cout << ident;
     std::cout << " }";
 }
-void LValAST::Koopa() const{
-    if(var_type[ident] == CONST_INT){
-    std::cout<<"%"<<index_sysy<<" = add 0 ,"<<const_val[ident]<<"\n";
+void LValAST::Koopa(){
+    int temp_idx = now_idx;
+    while(var_type.find(ident+"_"+std::to_string(temp_idx)) == var_type.end()){
+        temp_idx = block_tree[temp_idx];
+    }
+    std::string temp_name=ident+"_"+std::to_string(temp_idx);
+    if(var_type[temp_name] == CONST_INT){
+    std::cout<<"%"<<index_sysy<<" = add 0 ,"<<const_val[temp_name]<<"\n";
     index_sysy++;}
     else{
-        std::cout<<"%"<<index_sysy<<" = load @"<<ident<<"\n";
+        std::cout<<"%"<<index_sysy<<" = load @"<<temp_name<<"\n";
         index_sysy++;
     }
 }
 int LValAST::calc() const{
-    return const_val[ident];
+    int temp_idx = now_idx;
+    while(var_type.find(ident+"_"+std::to_string(temp_idx)) == var_type.end()){
+        temp_idx = block_tree[temp_idx];
+    }
+    std::string temp_name=ident+"_"+std::to_string(temp_idx);
+    return const_val[temp_name];
 }
 //ConstExp
 void ConstExpAST::Dump() const{
@@ -540,7 +654,7 @@ void ConstExpAST::Dump() const{
     exp->Dump();
     std::cout << " }";
 }
-void ConstExpAST::Koopa() const{
+void ConstExpAST::Koopa(){
     //place holder
 }
 
@@ -553,7 +667,7 @@ void VarDeclAST::Dump() const{
     }
     std::cout << " }";
 }
-void VarDeclAST::Koopa() const{
+void VarDeclAST::Koopa(){
     for(auto &i : var_def){
         i->Koopa();
     }
@@ -568,18 +682,20 @@ void VarDefAST::Dump() const{
     }
     std::cout << " }";
 }
-void VarDefAST::Koopa() const{
+void VarDefAST::Koopa(){
     if(tag == IDENT){
-        var_type[ident] = VAR;
-        std::cout<<"@"<<ident<<" = alloc i32 "<<"\n";
+        std::string temp_name=ident+"_"+std::to_string(now_idx);
+        var_type[temp_name] = VAR;
+        std::cout<<"@"<<temp_name<<" = alloc i32 "<<"\n";
     }
     else{
-        var_type[ident] = VAR;
-        const_val[ident] = init_val->calc();
-        std::cout<<"@"<<ident<<" = alloc i32 "<<"\n";
+        std::string temp_name=ident+"_"+std::to_string(now_idx);
+        var_type[temp_name] = VAR;
+        const_val[temp_name] = init_val->calc();
+        std::cout<<"@"<<temp_name<<" = alloc i32 "<<"\n";
         init_val->Koopa();
-        std::cout<<"store %"<<index_sysy-1<<", @"<<ident<<"\n";
-        // std::cout<<"var def"<<ident<< var_type[ident] <<const_val[ident]<<"\n";
+        std::cout<<"store %"<<index_sysy-1<<", @"<<temp_name<<"\n";
+        // std::cout<<"var def"<<ident<< var_type[ident] <<const_val[temp_name]<<"\n";
     }
 }
 
@@ -589,7 +705,7 @@ void InitValAST::Dump() const{
     exp->Dump();
     std::cout << " }";
 }
-void InitValAST::Koopa() const{
+void InitValAST::Koopa(){
     exp->Koopa();
 }
 int InitValAST::calc() const{
@@ -602,6 +718,11 @@ void LeValAST::Dump() const{
     std::cout << ident;
     std::cout << " }";
 }
-void LeValAST::Koopa() const{
-    std::cout<<"store %"<<index_sysy-1<<", @"<<ident<<"\n";
+void LeValAST::Koopa(){
+    int temp_idx = now_idx;
+    while(var_type.find(ident+"_"+std::to_string(temp_idx)) == var_type.end()){
+        temp_idx = block_tree[temp_idx];
+    }
+    std::string temp_name=ident+"_"+std::to_string(temp_idx);
+    std::cout<<"store %"<<index_sysy-1<<", @"<<temp_name<<"\n";
 }

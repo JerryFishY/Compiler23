@@ -15,3 +15,5 @@ void binary_helper(koopa_raw_value_t l,koopa_raw_value_t r,int & lreg,int &rreg)
 void binary_print_helper(int lreg,int rreg);
 void store_helper(koopa_raw_value_t value,int &soffset);
 void load_helper(koopa_raw_value_t load);
+void branch_helper(koopa_raw_value_t value,int &soffset);
+void jump_helper(koopa_raw_value_t value,int &soffset);

@@ -107,12 +107,23 @@ class ConstExpAST;
 // BlockItem     ::= ...;
 // Stmt          ::= LVal "=" Exp ";"
 //                 | "return" Exp ";";
+class VarDeclAST;
+class VarDefAST;
+class InitValAST;
+class LeValAST;
+
+//lv5
+// Stmt ::= LVal "=" Exp ";"
+//        | [Exp] ";"
+//        | Block
+//        | "return" [Exp] ";";
+
 // Base class for all AST
 class BaseAST {
  public:
   virtual ~BaseAST() = default;     
   virtual void Dump() const = 0;    // Dump the derived AST
-  virtual void Koopa() const = 0;   // Give the derived Koopa code
+  virtual void Koopa() = 0;   // Give the derived Koopa code
   virtual int  calc()  const = 0;   // Calculate the const expression
 };
 
@@ -122,7 +133,7 @@ class CompUnitAST : public BaseAST {
  public:
   std::unique_ptr<BaseAST> func_def;
   void Dump() const override;
-  void Koopa() const override;
+  void Koopa() override;
   int calc() const override{return 0;};
 };
 
@@ -133,7 +144,7 @@ class FuncDefAST : public BaseAST {
   std::string ident;
   std::unique_ptr<BaseAST> block;
   void Dump() const override;
-  void Koopa() const override;
+  void Koopa() override;
   int calc() const override{return 0;};
 };
 
@@ -141,19 +152,24 @@ class FuncDefAST : public BaseAST {
 class FuncTypeAST : public BaseAST {
  public:
   void Dump() const override;
-  void Koopa() const override;
+  void Koopa() override;
   int calc() const override{return 0;};
 };
 
 // StmtAST
 class StmtAST : public BaseAST {
  public:
-  enum TAG {RETURN,ASSIGN};
+  enum TAG {RETURN,ASSIGN,BLOCK,EXP,EMPTY,IF,IFELSE};
   TAG tag;
   std::unique_ptr<BaseAST> exp;
   std::unique_ptr<BaseAST> lval;
+  std::unique_ptr<BaseAST> block;
+  std::unique_ptr<BaseAST> ifexp;
+  std::unique_ptr<BaseAST> ifstmt;
+  std::unique_ptr<BaseAST> elsestmt;
+  int expnum;
   void Dump() const override;
-  void Koopa() const override;
+  void Koopa() override;
   int calc() const override{return 0;};
 };
 
@@ -162,7 +178,7 @@ class BlockAST : public BaseAST {
  public:
   std::vector<std::unique_ptr<BaseAST>> block_item;
   void Dump() const override;
-  void Koopa() const override;
+  void Koopa() override;
   int calc() const override{return 0;};
 };
 
@@ -172,7 +188,7 @@ class ExpAST : public BaseAST {
   public:
     std::unique_ptr<BaseAST> lorexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return lorexp->calc();};
 };
 
@@ -184,7 +200,7 @@ class PrimaryExpAST : public BaseAST {
     std::unique_ptr<BaseAST> exp;
     int number;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -197,7 +213,7 @@ class UnaryExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> uexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -211,7 +227,7 @@ class AddExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> aexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -224,7 +240,7 @@ class MulExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> mexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -238,7 +254,7 @@ class RelExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> relexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -251,7 +267,7 @@ class EqExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> eqexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -264,7 +280,7 @@ class LAndExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> landexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -277,7 +293,7 @@ class LOrExpAST : public BaseAST {
     std::string op;
     std::unique_ptr<BaseAST> lorexp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -289,7 +305,7 @@ class DeclAST : public BaseAST {
     std::unique_ptr<BaseAST> const_decl;
     std::unique_ptr<BaseAST> var_decl;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 //ConstDecl
@@ -297,14 +313,14 @@ class ConstDeclAST : public BaseAST {
   public:
     std::vector<std::unique_ptr<BaseAST>> const_def;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 //BType
 class BTypeAST : public BaseAST {
   public:
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 //ConstDef
@@ -313,7 +329,7 @@ class ConstDefAST : public BaseAST {
     std::string ident;
     std::unique_ptr<BaseAST> const_init_val;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{
       const_val[ident] = const_init_val->calc(); 
       return const_val[ident];};
@@ -323,7 +339,7 @@ class ConstInitValAST : public BaseAST {
   public:
     std::unique_ptr<BaseAST> const_exp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return const_exp->calc();};
 };
 
@@ -334,7 +350,7 @@ class BlockItemAST : public BaseAST {
     std::unique_ptr<BaseAST> decl;
     std::unique_ptr<BaseAST> stmt;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 
@@ -342,7 +358,7 @@ class LValAST : public BaseAST {
   public:
     std::string ident;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -350,7 +366,7 @@ class ConstExpAST : public BaseAST {
   public:
     std::unique_ptr<BaseAST> exp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return exp->calc();};
 };
 
@@ -360,7 +376,7 @@ class VarDeclAST : public BaseAST {
   public:
     std::vector<std::unique_ptr<BaseAST>> var_def;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 
@@ -372,7 +388,7 @@ class VarDefAST : public BaseAST {
     std::string ident;
     std::unique_ptr<BaseAST> init_val;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override{return 0;};
 };
 
@@ -380,7 +396,7 @@ class InitValAST : public BaseAST {
   public:
     std::unique_ptr<BaseAST> exp;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override;
 };
 
@@ -388,6 +404,6 @@ class LeValAST : public BaseAST{
   public:
     std::string ident;
     void Dump() const override;
-    void Koopa() const override;
+    void Koopa() override;
     int calc() const override {return 0;};
 };

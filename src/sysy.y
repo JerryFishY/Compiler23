@@ -28,7 +28,7 @@ using namespace std;
 }
 
 // Token declaration
-%token INT RETURN LE GE EQ NE AND OR CONST
+%token INT RETURN LE GE EQ NE AND OR CONST IF ELSE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
@@ -101,6 +101,38 @@ Stmt
     ast->tag = StmtAST::ASSIGN;
     ast->lval = unique_ptr<BaseAST>($1);
     ast->exp = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+  | Block {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::BLOCK;
+    ast->block = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | ';' {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::EMPTY;
+    $$ = ast;
+  }
+  | Exp ';'{
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::EXP;
+    ast->exp = unique_ptr<BaseAST>($1);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::IF;
+    ast->ifexp = unique_ptr<BaseAST>($3);
+    ast->ifstmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | IF '(' Exp ')' Stmt ELSE Stmt {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::IFELSE;
+    ast->ifexp = unique_ptr<BaseAST>($3);
+    ast->ifstmt = unique_ptr<BaseAST>($5);
+    ast->elsestmt = unique_ptr<BaseAST>($7);
     $$ = ast;
   }
   ;

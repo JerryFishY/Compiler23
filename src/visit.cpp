@@ -56,6 +56,8 @@ void visit(const koopa_raw_function_t &func){
 }
 
 void visit(const koopa_raw_basic_block_t &bb,int &soffset){
+  if(bb->name)
+    std::cout<<"\n"<<bb->name+1<<":"<<"\n";
   //Visit all values in it
   for(size_t i =0 ;i<bb->insts.len;i++){
     visit((koopa_raw_value_t)bb->insts.buffer[i],soffset);
@@ -205,6 +207,10 @@ void visit(const koopa_raw_value_t &value,int &soffset){
   }
   else if(value->kind.tag == KOOPA_RVT_LOAD){
     load_helper(value);
+  }else if(value->kind.tag == KOOPA_RVT_BRANCH){
+    branch_helper(value,soffset);
+  }else if(value->kind.tag == KOOPA_RVT_JUMP){
+    jump_helper(value,soffset);
   }
 }
 
@@ -272,4 +278,23 @@ void binary_print_helper(int lreg,int rreg){
   }else{
     std::cout<<", t"<<rreg<<"\n";
   }
+}
+
+void branch_helper(koopa_raw_value_t value,int &soffset){
+  koopa_raw_branch_t branch_inst=value->kind.data.branch;
+  std::cout<<"   li t4, "<<varalloc.var_offset[branch_inst.cond]<<"\n";
+  std::cout<<"   add t4, t4, sp\n";
+  std::cout<<"   lw t3, (t4)\n";
+  std::cout<<"   beqz t3, "<<branch_inst.false_bb->name+1<<"helper"<<"\n";
+  std::cout<<"   bnez t3, "<<branch_inst.true_bb->name+1<<"helper"<<"\n";
+  std::cout<<branch_inst.false_bb->name+1<<"helper"<<":\n";
+  std::cout<<"   j "<<branch_inst.false_bb->name+1<<"\n";
+  std::cout<<branch_inst.true_bb->name+1<<"helper"<<":"<<"\n";
+  std::cout<<"   j "<<branch_inst.true_bb->name+1<<"\n";
+  std::cout<<"\n";
+}
+
+void jump_helper(koopa_raw_value_t value,int &soffset){
+    koopa_raw_jump_t jump_inst=value->kind.data.jump;
+    std::cout<<"   j "<<jump_inst.target->name+1<<"\n\n";
 }
