@@ -159,7 +159,7 @@ class FuncTypeAST : public BaseAST {
 // StmtAST
 class StmtAST : public BaseAST {
  public:
-  enum TAG {RETURN,ASSIGN,BLOCK,EXP,EMPTY,IF,IFELSE};
+  enum TAG {RETURN,ASSIGN,BLOCK,EXP,EMPTY,IF,IFELSE,WHILE,BREAK,CONTINUE};
   TAG tag;
   std::unique_ptr<BaseAST> exp;
   std::unique_ptr<BaseAST> lval;
@@ -167,6 +167,7 @@ class StmtAST : public BaseAST {
   std::unique_ptr<BaseAST> ifexp;
   std::unique_ptr<BaseAST> ifstmt;
   std::unique_ptr<BaseAST> elsestmt;
+  std::unique_ptr<BaseAST> whilestmt;
   int expnum;
   void Dump() const override;
   void Koopa() override;

@@ -28,7 +28,7 @@ using namespace std;
 }
 
 // Token declaration
-%token INT RETURN LE GE EQ NE AND OR CONST IF ELSE
+%token INT RETURN LE GE EQ NE AND OR CONST IF ELSE WHILE BREAK CONTINUE
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
@@ -133,6 +133,23 @@ Stmt
     ast->ifexp = unique_ptr<BaseAST>($3);
     ast->ifstmt = unique_ptr<BaseAST>($5);
     ast->elsestmt = unique_ptr<BaseAST>($7);
+    $$ = ast;
+  }
+  | WHILE '(' Exp ')' Stmt {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::WHILE;
+    ast->exp = unique_ptr<BaseAST>($3);
+    ast->whilestmt = unique_ptr<BaseAST>($5);
+    $$ = ast;
+  }
+  | BREAK ';' {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::BREAK;
+    $$ = ast;
+  }
+  | CONTINUE ';' {
+    auto ast = new StmtAST();
+    ast->tag = StmtAST::CONTINUE;
     $$ = ast;
   }
   ;

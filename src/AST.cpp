@@ -81,7 +81,19 @@ void StmtAST::Dump() const {
         elsestmt->Dump();
         std::cout<<"}";
         }
-
+    else if(tag == WHILE){
+        std::cout << "Stmt { while ";
+        exp->Dump();
+        std::cout << " ";
+        whilestmt->Dump();
+        std::cout<<"}";
+    }else if(tag == BREAK){
+        std::cout << "Stmt { break ";
+        std::cout<<"}";
+    }else if(tag == CONTINUE){
+        std::cout << "Stmt { continue ";
+        std::cout<<"}";
+    }
 }
 void StmtAST::Koopa(){
     //place holder
@@ -141,6 +153,39 @@ void StmtAST::Koopa(){
         std::cout<<"\n%end"<<now_if_idx<<":"<<std::endl;
         if_dep++;
         now_if_dep=if_dep;
+    } else if(tag == WHILE){
+        if(end_blk[now_if_dep]) return;
+
+        while_idx++;
+        while_block[while_idx]=now_while_idx;
+        now_while_idx=while_idx;
+
+        if(!end_blk[now_if_dep])std::cout<<"jump %whilecheck"<<now_while_idx<<"\n\n";
+        std::cout<<"%whilecheck"<<now_while_idx<<":"<<std::endl;
+
+        exp->Koopa();
+        if(!end_blk[now_if_dep])std::cout<<"br %"<<index_sysy-1<<", %whilestmt"<<now_while_idx<<", %endwhile"<<now_while_idx<<"\n\n";
+        std::cout<<"%whilestmt"<<now_while_idx<<":"<<std::endl;
+
+        if_dep++;
+        now_if_dep=if_dep;
+
+
+        whilestmt->Koopa();
+        if(!end_blk[now_if_dep])std::cout<<"jump %whilecheck"<<now_while_idx<<"\n\n";
+        std::cout<<"%endwhile"<<now_while_idx<<":"<<std::endl;
+        now_while_idx=while_block[now_while_idx];
+        if_dep++;
+        now_if_dep=if_dep;
+    }else if(tag == BREAK){
+        if(end_blk[now_if_dep]) return;
+        std::cout<<"\tjump %endwhile"<<now_while_idx<<std::endl;
+        end_blk[now_if_dep] = 1;
+
+    }else if(tag == CONTINUE){
+        if(end_blk[now_if_dep]) return;
+        std::cout<<"\tjump %whilecheck"<<now_while_idx<<std::endl;
+        end_blk[now_if_dep] = 1;
     }
 }
 
