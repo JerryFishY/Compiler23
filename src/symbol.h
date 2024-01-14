@@ -5,7 +5,8 @@ extern std::unordered_map<std::string, int> const_val;
 
 enum TYPE {CONST_INT,VAR};
 extern std::unordered_map<std::string, TYPE> var_type;
-
+enum FUNCTYPE {FUNC_VOID,FUNC_INT};
+extern std::unordered_map<std::string, FUNCTYPE> func_type_dict;
 extern int blk_idx;
 extern int now_idx;
 extern int block_tree[1000]; // Store the parent node of each block

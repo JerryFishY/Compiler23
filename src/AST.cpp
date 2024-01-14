@@ -8,38 +8,118 @@ int index_sysy = 0;
 
 // CompUnit
 void CompUnitAST::Dump() const {
-  std::cout << "CompUnit {";
-  func_def->Dump();
-  std::cout << "}";
+    std::cout << "CompUnit {";
+    std::cout << "Decl in CompUnit {";
+    for(auto &i : decl){
+        i->Dump();
+        std::cout << ", ";
+    }
+    std::cout<<"}, ";
+    std::cout << "FuncDef in CompUnit {";
+    for(auto &i : func_def){
+        i->Dump();
+        std::cout << ", \n";
+    }
+    std::cout<<"}";
+    std::cout << "}";
 }
 void CompUnitAST::Koopa(){
-    func_def->Koopa();
+    std::cout<<"decl @getint(): i32\ndecl @getch(): i32\ndecl @getarray(*i32): i32\ndecl @putint(i32)\ndecl @putch(i32)\ndecl @putarray(i32, *i32)\ndecl @starttime()\ndecl @stoptime()"<<"\n";
+
+    for(auto &i : decl){
+        DeclAST* decl = dynamic_cast<DeclAST*>(i.get());
+        decl->global=1;
+        decl->Koopa();
+    }
+    for(auto &i : func_def){
+        i->Koopa();
+    }
 }
 
 // FuncDef
 void FuncDefAST::Dump() const {
     std::cout << "FuncDef {";
-    func_type->Dump();
-    std::cout << ", " << ident << ", ";
-    block->Dump();
+    if(tag == NOPARAM){
+        func_type->Dump();
+        std::cout << ", " << ident << ", ";
+        block->Dump();
+    }else if(tag == WITHPARAM){
+        func_type->Dump();
+        std::cout << ", " << ident << ", ";
+        func_params->Dump();
+        block->Dump();
+    }
     std::cout << "}";
+    
 }
 void FuncDefAST::Koopa() {
     std::cout << "fun ";
-    std::cout << "@"<<ident<<"(): ";
+    std::cout << "@"<<ident<<"(";
+    FuncFParamsAST* func_params = dynamic_cast<FuncFParamsAST*>(this->func_params.get());
+    if(tag == WITHPARAM) {
+        int idx= 0;
+        for(auto &i : func_params->func_fparams){
+            FuncFParamAST* func_param = dynamic_cast<FuncFParamAST*>(i.get());
+            if(idx !=0){
+                std::cout<<",";
+            }
+            std::cout << " @"<<func_param->ident<<": i32";
+            idx++;
+        }
+    }
+    std::cout<<") ";
     func_type->Koopa();
     std::cout<<"{\n";
-    std::cout << "%entry:\n";
+    std::cout << "%entry"<<":\n";
+
+    blk_idx++;
+    block_tree[blk_idx] = now_idx;
+    now_idx=blk_idx;
+    if(tag == WITHPARAM) {
+        func_params->Koopa();
+    }
+    //block index 
+    if_dep++;
+    now_if_dep = if_dep;
+    int ifunctype = 0;
+    BTypeAST* bfunc_type = dynamic_cast<BTypeAST*>(this->func_type.get());
+    if(bfunc_type->tag == BTypeAST::VOID){
+        ifunctype=0;
+        func_type_dict[ident] = FUNC_VOID;
+    }
+    else{
+        ifunctype=1;
+        func_type_dict[ident] = FUNC_INT;
+    }
+
     block->Koopa();
+
+    if(!end_blk[now_if_dep]){
+        if(ifunctype) std::cout<<"ret 0\n";
+        else std::cout<<"ret\n";
+    }
+
+    now_idx = block_tree[now_idx];
     std::cout<<"}\n";
 }
 
-// FuncType
-void FuncTypeAST::Dump() const {
-    std::cout << "FuncType { int }";
+void BTypeAST::Dump() const {
+    std::cout << "BType { ";
+    if(tag == VOID){
+        std::cout << "void";
+    }
+    else{
+        std::cout << "int"; 
+    }
+    std::cout<< "}";
   }
-void FuncTypeAST::Koopa(){
-    std::cout << "i32 ";
+void BTypeAST::Koopa(){
+    if(tag == VOID){
+        std::cout << "";
+    }
+    else{
+        std::cout << ": i32";
+    }
 }
 
 // StmtAST
@@ -263,8 +343,13 @@ void UnaryExpAST::Dump() const {
         std::cout << op << ", ";
         uexp->Dump();
     }
-    else{
+    else if(tag == PEXP) {
         pexp->Dump();
+    }else if(tag == WITHFUNCR){
+        std::cout << ident << ", ";
+        func_rparams->Dump();
+    }else if(tag == NOFUNCR){
+        std::cout << ident << ", ";
     }
     std::cout << " }";
 }
@@ -284,6 +369,38 @@ void UnaryExpAST::Koopa(){
         }
     }else if(tag == PEXP){
         pexp->Koopa();
+    }else{
+        if(tag==WITHFUNCR){
+            std::vector <int> rparams;
+            FuncRParamsAST* rfunc_rparams = dynamic_cast<FuncRParamsAST*>(this->func_rparams.get());
+            rparams = rfunc_rparams->Koopa_vec();
+            if(ident == "getint" || ident == "getch" || ident == "getarray" ||  func_type_dict[ident] == FUNC_INT){
+            std::cout<<"%"<<index_sysy<<"= call @"<<ident<<"(";
+            index_sysy++;
+            }
+            else{
+                std::cout<<"call @"<<ident<<"(";
+            }
+            
+            int idx=0;
+            for(auto &i : rparams){
+                if(idx==0)
+                std::cout<<"%"<<i;
+                else
+                std::cout<<",%"<<i;
+                idx++;
+            }
+            std::cout<<")\n";
+        }
+        else{
+            if(ident == "getint" || ident == "getch" || ident == "getarray" ||  func_type_dict[ident] == FUNC_INT){
+                std::cout<<"%"<<index_sysy<<" = call @"<<ident<<"()\n";
+                index_sysy++;
+            }
+            else{
+                std::cout<<"call @"<<ident<<"()\n";
+            }
+        }
     }
 }
 int UnaryExpAST::calc() const{
@@ -600,10 +717,14 @@ void DeclAST::Dump() const{
 }
 void DeclAST::Koopa(){
     if(tag == DeclAST::CONST){
-        const_decl->Koopa();
+        ConstDeclAST* dconst_decl = dynamic_cast<ConstDeclAST*>(this->const_decl.get());
+        dconst_decl->global=global;
+        dconst_decl->Koopa();
     }
     else{
-        var_decl->Koopa();
+        VarDeclAST* dvar_decl = dynamic_cast<VarDeclAST*>(this->var_decl.get());
+        dvar_decl->global=global;
+        dvar_decl->Koopa();
     }
 }
 
@@ -618,7 +739,9 @@ void ConstDeclAST::Dump() const{
 }
 void ConstDeclAST::Koopa(){
     for(auto &i : const_def){
-        i->Koopa();
+        ConstDefAST* dconst_def = dynamic_cast<ConstDefAST*>(i.get());
+        dconst_def->global=global;
+        dconst_def->Koopa();
     }
 }
 
@@ -630,10 +753,16 @@ void ConstDefAST::Dump() const{
     std::cout << " }";
 }
 void ConstDefAST::Koopa(){
+    if(!global){
     std::string temp_name=ident+"_"+std::to_string(now_idx);
     var_type[temp_name] = CONST_INT;
     const_val[temp_name] = const_init_val->calc();
     // std::cout << var_type[temp_name] <<" "<<ident<< " = " << const_val[temp_name] << "\n";
+    }else{
+    std::string temp_name=ident+"_"+std::to_string(now_idx);
+    var_type[temp_name] = CONST_INT;
+    const_val[temp_name] = const_init_val->calc();
+    }
 }
 //ConstInitVal
 void ConstInitValAST::Dump() const{
@@ -714,7 +843,9 @@ void VarDeclAST::Dump() const{
 }
 void VarDeclAST::Koopa(){
     for(auto &i : var_def){
-        i->Koopa();
+        VarDefAST* dvar_def = dynamic_cast<VarDefAST*>(i.get());
+        dvar_def->global=global;
+        dvar_def->Koopa();
     }
 }
 
@@ -729,18 +860,33 @@ void VarDefAST::Dump() const{
 }
 void VarDefAST::Koopa(){
     if(tag == IDENT){
+        if(!global){
         std::string temp_name=ident+"_"+std::to_string(now_idx);
         var_type[temp_name] = VAR;
         std::cout<<"@"<<temp_name<<" = alloc i32 "<<"\n";
-    }
-    else{
+        }
+        else{
         std::string temp_name=ident+"_"+std::to_string(now_idx);
         var_type[temp_name] = VAR;
-        const_val[temp_name] = init_val->calc();
+        std::cout<<"global @"<<temp_name<<" = alloc i32, 0"<<"\n";
+        }
+    }
+    else{
+        if(!global){
+        std::string temp_name=ident+"_"+std::to_string(now_idx);
+        var_type[temp_name] = VAR;
+        // const_val[temp_name] = init_val->calc();
         std::cout<<"@"<<temp_name<<" = alloc i32 "<<"\n";
         init_val->Koopa();
         std::cout<<"store %"<<index_sysy-1<<", @"<<temp_name<<"\n";
         // std::cout<<"var def"<<ident<< var_type[ident] <<const_val[temp_name]<<"\n";
+        }else{
+        std::string temp_name=ident+"_"+std::to_string(now_idx);
+        var_type[temp_name] = VAR;
+        const_val[temp_name] = init_val->calc();
+        std::cout<<"global @"<<temp_name<<" = alloc i32, "<<const_val[temp_name]<<"\n";
+        // init_val->Koopa();
+        }
     }
 }
 
@@ -770,4 +916,51 @@ void LeValAST::Koopa(){
     }
     std::string temp_name=ident+"_"+std::to_string(temp_idx);
     std::cout<<"store %"<<index_sysy-1<<", @"<<temp_name<<"\n";
+}
+
+//FuncFParams
+void FuncFParamsAST::Dump() const{
+    std::cout << "FuncFParams { ";
+    for(auto &i : func_fparams){
+        i->Dump();
+        std::cout << ", ";
+    }
+    std::cout << " }";
+}
+void FuncFParamsAST::Koopa(){
+    for(auto &i : func_fparams){
+        i->Koopa();
+    }
+}
+
+//FuncFParam
+void FuncFParamAST::Dump() const{
+    std::cout << "FuncFParam { ";
+    std::cout << ident;
+    std::cout << " }";
+}
+void FuncFParamAST::Koopa(){
+    std::cout<<"@"<<ident<<"_"<<now_idx<<" = alloc i32\n";
+    std::cout<<"store @"<<ident<<", @"<<""<<ident+"_"+std::to_string(now_idx)<<"\n";
+    var_type[ident+"_"+std::to_string(now_idx)]=VAR;
+}
+//FuncRParams
+void FuncRParamsAST::Dump() const{
+    std::cout << "FuncRParams { ";
+    for(auto &i : func_rparams){
+        i->Dump();
+        std::cout << ", ";
+    }
+    std::cout << " }";
+}
+void FuncRParamsAST::Koopa(){
+    // place holder
+}
+std::vector<int> FuncRParamsAST::Koopa_vec(){
+    std::vector<int> rparam;
+    for(auto &i : func_rparams){
+        i->Koopa();
+        rparam.push_back(index_sysy-1);
+    }
+    return rparam;
 }

@@ -118,6 +118,17 @@ class LeValAST;
 //        | Block
 //        | "return" [Exp] ";";
 
+//lv8.1
+// CompUnit    ::= [CompUnit] FuncDef;
+// FuncDef     ::= FuncType IDENT "(" [FuncFParams] ")" Block;
+// FuncType    ::= "void" | "int";
+// FuncFParams ::= FuncFParam {"," FuncFParam};
+// FuncFParam  ::= BType IDENT;
+// UnaryExp    ::= ...
+//               | IDENT "(" [FuncRParams] ")"
+//               | ...;
+// FuncRParams ::= Exp {"," Exp};
+
 // Base class for all AST
 class BaseAST {
  public:
@@ -130,8 +141,9 @@ class BaseAST {
 // lv1-lv2
 // CompUnit
 class CompUnitAST : public BaseAST {
- public:
-  std::unique_ptr<BaseAST> func_def;
+  public:
+  std::vector<std::unique_ptr<BaseAST>> func_def;
+  std::vector<std::unique_ptr<BaseAST>> decl;
   void Dump() const override;
   void Koopa() override;
   int calc() const override{return 0;};
@@ -140,17 +152,12 @@ class CompUnitAST : public BaseAST {
 // FuncDef
 class FuncDefAST : public BaseAST {
  public:
-  std::unique_ptr<BaseAST> func_type;
+  enum TAG {WITHPARAM,NOPARAM};
+  TAG tag;
+  std::unique_ptr<BaseAST> func_type;//0 stands for int, 1 stands for void
   std::string ident;
+  std::unique_ptr<BaseAST> func_params;
   std::unique_ptr<BaseAST> block;
-  void Dump() const override;
-  void Koopa() override;
-  int calc() const override{return 0;};
-};
-
-// FuncType
-class FuncTypeAST : public BaseAST {
- public:
   void Dump() const override;
   void Koopa() override;
   int calc() const override{return 0;};
@@ -208,11 +215,13 @@ class PrimaryExpAST : public BaseAST {
 // UnaryExpAST
 class UnaryExpAST : public BaseAST {
   public:
-    enum TAG {PEXP,OPUEXP};
+    enum TAG {PEXP,OPUEXP,WITHFUNCR,NOFUNCR};
     TAG tag;
     std::unique_ptr<BaseAST> pexp;
     std::string op;
     std::unique_ptr<BaseAST> uexp;
+    std::string ident;
+    std::unique_ptr<BaseAST> func_rparams;
     void Dump() const override;
     void Koopa() override;
     int calc() const override;
@@ -305,6 +314,7 @@ class DeclAST : public BaseAST {
     TAG tag;
     std::unique_ptr<BaseAST> const_decl;
     std::unique_ptr<BaseAST> var_decl;
+    int global;
     void Dump() const override;
     void Koopa() override;
     int calc() const override{return 0;};
@@ -313,6 +323,7 @@ class DeclAST : public BaseAST {
 class ConstDeclAST : public BaseAST {
   public:
     std::vector<std::unique_ptr<BaseAST>> const_def;
+    int global;
     void Dump() const override;
     void Koopa() override;
     int calc() const override{return 0;};
@@ -320,6 +331,8 @@ class ConstDeclAST : public BaseAST {
 //BType
 class BTypeAST : public BaseAST {
   public:
+    enum TAG {INT,VOID};
+    TAG tag;
     void Dump() const override;
     void Koopa() override;
     int calc() const override{return 0;};
@@ -329,6 +342,7 @@ class ConstDefAST : public BaseAST {
   public:
     std::string ident;
     std::unique_ptr<BaseAST> const_init_val;
+    int global;
     void Dump() const override;
     void Koopa() override;
     int calc() const override{
@@ -376,6 +390,7 @@ class ConstExpAST : public BaseAST {
 class VarDeclAST : public BaseAST {
   public:
     std::vector<std::unique_ptr<BaseAST>> var_def;
+    int global;
     void Dump() const override;
     void Koopa() override;
     int calc() const override{return 0;};
@@ -386,6 +401,7 @@ class VarDefAST : public BaseAST {
   public:
     enum TAG {IDENT,INIT};
     TAG tag;
+    int global;
     std::string ident;
     std::unique_ptr<BaseAST> init_val;
     void Dump() const override;
@@ -407,4 +423,31 @@ class LeValAST : public BaseAST{
     void Dump() const override;
     void Koopa() override;
     int calc() const override {return 0;};
+};
+
+//lv8.1
+class FuncFParamsAST : public BaseAST {
+  public:
+    std::vector<std::unique_ptr<BaseAST>> func_fparams;
+    void Dump() const override;
+    void Koopa() override;
+    int calc() const override{return 0;};
+};
+
+class FuncFParamAST : public BaseAST {
+  public:
+    std::unique_ptr<BaseAST> btype;
+    std::string ident;
+    void Dump() const override;
+    void Koopa() override;
+    int calc() const override{return 0;};
+};
+
+class FuncRParamsAST : public BaseAST {
+  public:
+    std::vector<std::unique_ptr<BaseAST>> func_rparams;
+    void Dump() const override;
+    void Koopa() override;
+    std::vector<int> Koopa_vec();
+    int calc() const override{return 0;};
 };

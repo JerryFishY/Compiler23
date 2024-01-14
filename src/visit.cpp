@@ -9,7 +9,20 @@ class VarAlloc{
 } varalloc;
 
 
-
+void allocstack(const koopa_raw_function_t &func,int &A){
+    for(size_t i = 0; i < func->bbs.len; ++i){
+        auto bb = reinterpret_cast<koopa_raw_basic_block_t>(func->bbs.buffer[i]);
+        for(int j = 0; j < bb->insts.len; ++j){
+            auto value = reinterpret_cast<koopa_raw_value_t>(bb->insts.buffer[j]);
+            if(value->kind.tag == KOOPA_RVT_CALL){
+                koopa_raw_call_t c = value->kind.data.call;
+                if((int)c.args.len > 8){
+                    A = A >((int)c.args.len - 8 ) * 4?A:((int)c.args.len - 8 ) * 4;
+                }
+            }
+        }
+    }
+}
 
 void parse_str(const char* str){
   koopa_program_t program;
@@ -18,7 +31,23 @@ void parse_str(const char* str){
   koopa_raw_program_builder_t builder = koopa_new_raw_program_builder();
   koopa_raw_program_t raw = koopa_build_raw_program(builder, program);
   koopa_delete_program(program);
-  std::cout<<"   .text\n";
+
+  if(raw.values.len)
+    {
+        std::cout<<".data\n";
+        for(size_t i=0;i<raw.values.len;++i)
+        {
+            koopa_raw_value_t data=(koopa_raw_value_t)raw.values.buffer[i];
+            std::cout<<".globl "<<data->name+1<<"\n";
+            std::cout<<data->name+1<<":\n";
+            if(data->kind.data.global_alloc.init->kind.tag==KOOPA_RVT_INTEGER)
+            {
+                std::cout<<"   .word "<<data->kind.data.global_alloc.init->kind.data.integer.value<<"\n";
+                std::cout<<"\n";
+            }
+        }
+    }
+
 
   visit(raw);
   koopa_delete_raw_program_builder(builder);
@@ -43,21 +72,29 @@ void visit(const koopa_raw_slice_t &slice){
 }
 
 void visit(const koopa_raw_function_t &func){
+  if(func->bbs.len == 0) return;
+  int A=0;
+  allocstack(func,A);
+  std::cout<<"   .text\n";
   std::cout<<"   .globl "<<func->name+1<<"\n";
   std::cout<<func->name+1<<":\n";
   //alloc stack for the function
-  std::cout<<"  addi sp, sp, -256"<<"\n";
-  int soffset = 0;// stack pointer offset in this function stack
+  std::cout<<"  addi sp, sp, -512"<<"\n";
+  std::cout<<"sw ra, 508(sp)\n";
+
+  int soffset = A;// stack pointer offset in this function stack A+4 is reserved for the caller
   //Visit all basic blocks in it
   for(size_t i =0 ;i<func->bbs.len;i++){
     visit((koopa_raw_basic_block_t)func->bbs.buffer[i],soffset);
   }
-  std::cout<<"  addi sp, sp, 256"<<"\n";
 }
 
 void visit(const koopa_raw_basic_block_t &bb,int &soffset){
-  if(bb->name)
-    std::cout<<"\n"<<bb->name+1<<":"<<"\n";
+  if(bb->name){
+    if(std::string(bb->name+1) != "entry"){
+      std::cout<<"\n"<<bb->name+1<<":"<<"\n";
+      }
+  }
   //Visit all values in it
   for(size_t i =0 ;i<bb->insts.len;i++){
     visit((koopa_raw_value_t)bb->insts.buffer[i],soffset);
@@ -66,8 +103,12 @@ void visit(const koopa_raw_basic_block_t &bb,int &soffset){
 
 void visit(const koopa_raw_value_t &value,int &soffset){
   //Visit all values in it
+
   if(value->kind.tag == KOOPA_RVT_RETURN){
-    if(value->kind.data.ret.value->kind.tag == KOOPA_RVT_INTEGER){
+    if(value->kind.data.ret.value == nullptr){
+
+    }
+    else if(value->kind.data.ret.value->kind.tag == KOOPA_RVT_INTEGER){
       int i = value->kind.data.integer.value;
       std::cout<<"   li "<<"a0, "<<i<<"\n";
   } else{
@@ -75,7 +116,9 @@ void visit(const koopa_raw_value_t &value,int &soffset){
       std::cout<<"   lw t0, "<<retoff<<"(sp)\n";
       std::cout<<"   add "<<"a0, x0 ,t0\n";
   }
-    std::cout<<"   ret\n";
+    std::cout<<"lw ra, 508(sp)\n";
+    std::cout<<"  addi sp, sp, 512"<<"\n";
+    std::cout<<"   ret\n\n";
   }
   if(value->kind.tag == KOOPA_RVT_BINARY){
     int lreg,rreg;
@@ -206,11 +249,18 @@ void visit(const koopa_raw_value_t &value,int &soffset){
     store_helper(value,soffset);
   }
   else if(value->kind.tag == KOOPA_RVT_LOAD){
-    load_helper(value);
+    load_helper(value,soffset);
   }else if(value->kind.tag == KOOPA_RVT_BRANCH){
     branch_helper(value,soffset);
   }else if(value->kind.tag == KOOPA_RVT_JUMP){
     jump_helper(value,soffset);
+  }
+  else if(value->kind.tag == KOOPA_RVT_CALL){
+    call_helper(value,soffset);
+  }
+  else{
+    // should not touch here
+    // assert(false);
   }
 }
 
@@ -249,12 +299,30 @@ void store_helper(koopa_raw_value_t value,int &soffset){
     koopa_raw_value_t store_dest=store_inst.dest;
     if(store_val->kind.tag==KOOPA_RVT_INTEGER)
     {
-        std::cout<<"   li t0, "<<store_val->kind.data.integer.value<<"\n";
-    }else
+        std::cout<<"li t0, "<<store_val->kind.data.integer.value<<"\n";
+    }else if(store_val->kind.tag==KOOPA_RVT_FUNC_ARG_REF)
+    {
+      koopa_raw_func_arg_ref_t arg=store_val->kind.data.func_arg_ref;
+      if(arg.index < 8){
+        std::cout<<"mv t0, a"<<arg.index<<"\n";
+      }else{
+        std::cout<<"li t5, "<<512+(arg.index-8)*4<<"\n";
+        std::cout<<"add t5, t5, sp\n";
+        std::cout<<"lw t0, (t5)"<<"\n";
+      }
+    }
+    else
     {
         std::cout<<"   lw t0, "<<varalloc.var_offset[store_val]<<"(sp)"<<"\n";
     }
-    if(varalloc.var_offset.find(store_dest) == varalloc.var_offset.end())
+
+    // Store
+    if(store_dest->kind.tag == KOOPA_RVT_GLOBAL_ALLOC){
+      std::cout<<"la t1, "<<store_dest->name+1<<"\n";
+      std::cout<<"sw t0, (t1)\n";
+      return;
+    }
+    else if(varalloc.var_offset.find(store_dest) == varalloc.var_offset.end())
     {
         varalloc.var_offset[store_dest]=soffset;
         soffset+=4;
@@ -262,9 +330,19 @@ void store_helper(koopa_raw_value_t value,int &soffset){
     std::cout<<"   sw t0, "<<varalloc.var_offset[store_dest]<<"(sp)"<<"\n";
 }
 
-void load_helper(koopa_raw_value_t load)
-{ 
+void load_helper(koopa_raw_value_t load,int& soffset)
+{ if(load->kind.data.load.src->kind.tag==KOOPA_RVT_GLOBAL_ALLOC){
+    std::cout<<"   la t0, "<<load->kind.data.load.src->name+1<<"\n";
+    std::cout<<"   lw t0, 0(t0)\n";
+    std::cout<<"   li t5, "<<soffset<<"\n";
+    std::cout<<"   add t5, t5, sp"<<"\n";
+    std::cout<<"   sw t0, (t5)"<<"\n";
+    varalloc.var_offset[load]=soffset;
+    soffset+=4;
+  }
+else{
   varalloc.var_offset[load]=varalloc.var_offset[load->kind.data.load.src];
+}
 }
 
 void binary_print_helper(int lreg,int rreg){
@@ -297,4 +375,36 @@ void branch_helper(koopa_raw_value_t value,int &soffset){
 void jump_helper(koopa_raw_value_t value,int &soffset){
     koopa_raw_jump_t jump_inst=value->kind.data.jump;
     std::cout<<"   j "<<jump_inst.target->name+1<<"\n\n";
+}
+
+void call_helper(koopa_raw_value_t value,int &soffset){
+  koopa_raw_function_t func=value->kind.data.call.callee;
+  koopa_raw_slice_t args=value->kind.data.call.args;
+  int nowsoffset=0;
+  for(int i=0;i<args.len;i++)
+  {
+      if(varalloc.var_offset.find((koopa_raw_value_t)args.buffer[i]) != varalloc.var_offset.end())
+      {
+          if(i<8)
+          {
+              std::cout<<"li t5, "<<varalloc.var_offset[(koopa_raw_value_t)(args.buffer[i])]<<"\nadd t5, t5, sp\n";
+              std::cout<<"lw a"<<i<<", (t5)"<<"\n";
+          }else
+          {
+              std::cout<<"   li t5, "<<varalloc.var_offset[(koopa_raw_value_t)args.buffer[i]]<<"\n";
+              std::cout<<"   add t5, t5, sp"<<"\n";
+              std::cout<<"   lw t0, (t5)"<<"\n";
+              std::cout<<"   li t5, "<<nowsoffset<<"\n";
+              std::cout<<"   add t5, t5, sp"<<"\n";
+              std::cout<<"   sw t0, (t5)"<<"\n";
+              nowsoffset+=4;
+          }
+      } 
+  }
+  std::cout<<"   call "<<func->name+1<<"\n";
+  varalloc.var_offset[value]=soffset;
+  soffset+=4;
+  std::cout<<"   li t5, "<<varalloc.var_offset[value]<<"\n";
+  std::cout<<"   add t5, t5, sp"<<"\n";
+  std::cout<<"   sw a0, (t5)"<<"\n";
 }

@@ -3,6 +3,7 @@
 
 std::unordered_map<std::string, int> const_val; // To record the value of the value
 std::unordered_map<std::string, TYPE> var_type; // To record the type of the value
+std::unordered_map<std::string, FUNCTYPE> func_type_dict; // To record the type of the value
 int blk_idx = 0;
 int now_idx = 0;
 int block_tree[1000]={0};

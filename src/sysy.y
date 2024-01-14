@@ -28,12 +28,12 @@ using namespace std;
 }
 
 // Token declaration
-%token INT RETURN LE GE EQ NE AND OR CONST IF ELSE WHILE BREAK CONTINUE
+%token INT RETURN LE GE EQ NE AND OR CONST IF ELSE WHILE BREAK CONTINUE VOID
 %token <str_val> IDENT
 %token <int_val> INT_CONST
 
 // Non-terminal type
-%type <ast_val> FuncDef FuncType Block Stmt Exp UnaryExp  PrimaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp Decl ConstDecl BType ConstDef ConstDefList ConstInitVal BlockItem LVal ConstExp LeVal BlockItemList VarDecl VarDef InitVar VarDefList
+%type <ast_val> FuncDef Block Stmt Exp UnaryExp  PrimaryExp AddExp MulExp LOrExp LAndExp EqExp RelExp Decl ConstDecl BType ConstDef ConstDefList ConstInitVal BlockItem LVal ConstExp LeVal BlockItemList VarDecl VarDef InitVar VarDefList FuncFParams FuncFParam FuncRParams CompUnitList DefDecl
 %type <int_val> Number
 %type <char_val> UnaryOp
 
@@ -42,30 +42,91 @@ using namespace std;
 // Parsing rule
 // Lv1-Lv2
 CompUnit
-  : FuncDef {
-    auto comp_unit = make_unique<CompUnitAST>();
-    comp_unit->func_def = unique_ptr<BaseAST>($1);
+  : CompUnitList{
+    auto comp_unit = unique_ptr<BaseAST>($1);
     ast = move(comp_unit);
   }
   ;
+CompUnitList
+  : DefDecl {
+    $$ = $1;
+  }
+  | CompUnitList DefDecl {
+    auto comp_unit = new CompUnitAST();
+    auto list1 = (CompUnitAST* )$1;
+    auto list2 = (CompUnitAST* )$2;
+    for(auto &func : list1->func_def) {
+      comp_unit->func_def.emplace_back(func.release());
+    }
+    for(auto &func : list2->func_def) {
+      comp_unit->func_def.emplace_back(func.release());
+    }
+    for(auto &decl_ : list1->decl) {
+      comp_unit->decl.emplace_back(decl_.release());
+    }
+    for(auto &decl_ : list2->decl) {
+      comp_unit->decl.emplace_back(decl_.release());
+    }
+    $$ = comp_unit;
+  }
+  ;
+DefDecl
+  : Decl{
+    auto comp_unit = new CompUnitAST();
+    comp_unit->decl.emplace_back($1);
+    $$=comp_unit;
+  }
+  | FuncDef {
+    auto comp_unit = new CompUnitAST();
+    comp_unit->func_def.emplace_back($1);
+    $$=comp_unit;
+  } 
+  ;
 
 FuncDef
-  : FuncType IDENT '(' ')' Block {
+  : BType IDENT '(' ')' Block {
     auto ast = new FuncDefAST();
+    ast->tag=FuncDefAST::NOPARAM;
     ast->func_type = unique_ptr<BaseAST>($1);
     ast->ident = *unique_ptr<string>($2);
     ast->block = unique_ptr<BaseAST>($5);
     $$ = ast;
   }
-  ;
-
-FuncType
-  : INT {
-    auto ast = new FuncTypeAST();
-    $$ = ast; 
+  | BType IDENT '(' FuncFParams ')' Block {
+    auto ast = new FuncDefAST();
+    ast->tag=FuncDefAST::WITHPARAM;
+    ast->func_type = unique_ptr<BaseAST>($1);
+    ast->ident = *unique_ptr<string>($2);
+    ast->func_params = unique_ptr<BaseAST>($4);
+    ast->block = unique_ptr<BaseAST>($6);
+    $$ = ast;
   }
   ;
 
+
+FuncFParams
+  : FuncFParam ',' FuncFParams {
+    auto ast = new FuncFParamsAST();
+    auto ast_param = unique_ptr<FuncFParamsAST>((FuncFParamsAST*)$3);
+    ast->func_fparams.emplace_back($1); 
+    for(auto &fparam : ast_param->func_fparams) {
+      ast->func_fparams.emplace_back(fparam.release());
+    }
+    $$ = ast;
+  }
+  | FuncFParam {
+    auto ast = new FuncFParamsAST();
+    ast->func_fparams.emplace_back($1);
+    $$ = ast;
+  }
+  ;
+FuncFParam
+  : BType IDENT {
+    auto ast = new FuncFParamAST();
+    ast->ident = *unique_ptr<string>($2);
+    $$ = ast;
+  }
+  ;
 Block
   : '{' BlockItemList '}' {
     $$=$2;
@@ -205,7 +266,36 @@ UnaryExp
     ast->uexp = unique_ptr<BaseAST>($2);
     $$ = ast;
   }
-
+  | IDENT '(' ')' {
+    auto ast = new UnaryExpAST();
+    ast->tag = UnaryExpAST::NOFUNCR;
+    ast->ident = *unique_ptr<string>($1);
+    $$ = ast;
+  }
+  | IDENT '(' FuncRParams ')' {
+    auto ast = new UnaryExpAST();
+    ast->tag = UnaryExpAST::WITHFUNCR;
+    ast->ident = *unique_ptr<string>($1);
+    ast->func_rparams = unique_ptr<BaseAST>($3);
+    $$ = ast;
+  }
+FuncRParams
+  : Exp {
+    auto ast = new FuncRParamsAST();
+    ast->func_rparams.emplace_back($1);
+    $$ = ast;
+  }
+  | Exp ',' FuncRParams {
+    auto ast = new FuncRParamsAST();
+    auto ast_param = unique_ptr<FuncRParamsAST>((FuncRParamsAST* )$3);
+    ast->func_rparams.emplace_back($1);
+    int n = ast_param->func_rparams.size();
+    for(int i = 0; i < n; i++) {
+      ast->func_rparams.emplace_back(ast_param->func_rparams[i].release());
+    }
+    $$ = ast;
+  }
+  ;
 UnaryOp
   : '+' {
     $$ = '+';
@@ -371,12 +461,14 @@ Decl
   : ConstDecl {
     auto ast = new DeclAST();
     ast->tag = DeclAST::CONST;
+    ast->global = 0;
     ast->const_decl = unique_ptr<BaseAST>($1);
     $$ = ast;
   }
   | VarDecl{
       auto ast = new DeclAST();
       ast->tag = DeclAST::VAR;
+      ast->global = 0;
       ast->var_decl = unique_ptr<BaseAST>($1);
       $$ = ast;
   }
@@ -452,6 +544,14 @@ ConstExp
   ;
 BType
   : INT {
+    auto ast = new BTypeAST();
+    ast->tag = BTypeAST::INT;
+    $$=ast;
+  }
+  | VOID {
+    auto ast = new BTypeAST();
+    ast->tag = BTypeAST::VOID;
+    $$=ast;
   }
 VarDecl
   : BType VarDefList ';' {
@@ -507,5 +607,6 @@ void yyerror(unique_ptr<BaseAST> &ast, const char *s) {
     {
         sprintf(buf,"%s%d ",buf,yytext[i]);
     }
+
     fprintf(stderr, "ERROR: %s at symbol '%s' on line %d\n", s, buf, yylineno);
 }
